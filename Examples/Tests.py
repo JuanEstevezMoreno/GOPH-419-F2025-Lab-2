@@ -1,7 +1,16 @@
+import os
+import sys
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 from typing import Callable, Any, cast
+
+# Make src/ importable so we can get linalg_interp
+HERE = os.path.dirname(os.path.abspath(__file__))
+SRC_PATH = os.path.abspath(os.path.join(HERE, "..", "src"))
+if SRC_PATH not in sys.path:
+    sys.path.insert(0, SRC_PATH)
 from linalg_interp import gauss_iter_solve, spline_function #type: ignore[import]
+
 
 def _print_result(name: str, passed: bool) -> None:
     status = "PASSED" if passed else "FAILED"
