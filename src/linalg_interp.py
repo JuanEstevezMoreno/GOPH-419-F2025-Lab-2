@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 
-def gauss_iter_solve(A, b, x0=None, tol=1e-8, alg='seidel'):
+def gauss_iter_solve(A, b, x0=None, tol=1e-12, alg='seidel'):
     """
     Solve Ax = b using Gauss-Seidel or Jacobi iteration.
 
@@ -70,21 +70,29 @@ def gauss_iter_solve(A, b, x0=None, tol=1e-8, alg='seidel'):
     As = I - A_norm
 
     max_iter = 100000
+
     for k in range(max_iter):
         x_old = x.copy()
 
         if alg == 'jacobi':
-            x = As @ x_old + b_norm
+            # Jacobi update uses ONLY x_old
+            x_new = np.empty_like(x_old)
+            for i in range(n):
+                sigma = A[i, :] @ x_old
+                sigma -= A[i, i] * x_old[i, :]
+                x_new[i, :] = (b[i, :] - sigma) / A[i, i]
+            x = x_new
+
         else:  # Gauss–Seidel
             for i in range(n):
-                x[i, :] = (
-                    b_norm[i, :]
-                    - np.dot(As[i, :], x)
-                    + As[i, i] * x[i, :]
-                )  # Fix double-subtract of the diagonal
+                sigma = A[i, :] @ x
+                sigma -= A[i, i] * x[i, :]
+                x[i, :] = (b[i, :] - sigma) / A[i, i]
 
         # Convergence check
-        err = np.linalg.norm(x - x_old) / (np.linalg.norm(x) + 1e-14)
+        num = np.linalg.norm(x - x_old)
+        den = np.linalg.norm(x) + 1e-14
+        err = num/den
         if err < tol:
             return x
 
