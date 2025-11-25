@@ -78,22 +78,23 @@ def gauss_iter_solve(A, b, x0=None, tol=1e-12, alg='seidel'):
             # Jacobi update uses ONLY x_old
             x_new = np.empty_like(x_old)
             for i in range(n):
-                sigma = A[i, :] @ x_old
-                sigma -= A[i, i] * x_old[i, :]
+                sigma = np.dot(A[i, :], x_old) - A[i, i] * x_old[i, :]
                 x_new[i, :] = (b[i, :] - sigma) / A[i, i]
             x = x_new
 
         else:  # Gauss–Seidel
             for i in range(n):
-                sigma = A[i, :] @ x
-                sigma -= A[i, i] * x[i, :]
+                sigma = A[i, :] @ x - A[i, i] * x[i, :]
                 x[i, :] = (b[i, :] - sigma) / A[i, i]
 
         # Convergence check
-        num = np.linalg.norm(x - x_old)
-        den = np.linalg.norm(x) + 1e-14
-        err = num/den
-        if err < tol:
+        residual = np.linalg.norm(A @ x - b)
+        if residual < tol:
+            return x
+        
+        # Checl relative change
+        change = np.linalg.norm(x - x_old)
+        if change < tol * (np.linalg.norm(x) + 1e-14):
             return x
 
     warnings.warn("Gauss-Seidel/Jacobi did not converge.", RuntimeWarning)
@@ -144,20 +145,27 @@ def spline_function(xd, yd, order=3):
         # Build system
         for i in range(N-1):
             A[i, i] = h[i]
-            if i + 1 < N:
-                A[i, i+1] = h[i+1]
-            rhs[i] = 2 * ((yd[i+2] - yd[i+1]) / h[i+1] - (yd[i+1] - yd[i]) / h[i])
+            A[i, i+1] = h[i+1]
+            rhs[i] = 2 * (
+                (yd[i+2] - yd[i+1]) / h[i+1]
+                - (yd[i+1]-yd[i]) / h[i]
+            )
 
         # Not-a-knot boundary condition at i = 1
         A[-1, 0] = h[0]
         A[-1, -1] = -h[1]
         rhs[-1] = 0
 
-        c = gauss_iter_solve(A, rhs, alg='seidel').flatten()
+        # USE DIRECT SOLVER INSTEAD
+        try:
+            c = np.linalg.solve(A, rhs)
+        except np.linalg.LinAlgError:
+            # Fallback to least squares if matrix is singular
+            c = np.linalg.lstsq(A, rhs, rcond=None)[0]
 
         # Compute b_i and a_i
-        b = (np.diff(yd) / h) - c * h
         a = yd[:-1]
+        b = (yd[1:] - yd[:-1]) / h - c * h
 
         def f_quadratic(x):
             x = np.array(x, dtype=float)
